@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Board Game Matcher</title>
+<style>
+  :root { --bg: #2b1b3d; --felt: #1f5e43; --card: #fffaf0; --ink: #2d2017; --muted: #7a6a5a; --line: #e6d7bd; --red: #d6336c; --yellow: #fcc419; --green: #2b8a3e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--felt); background-image: radial-gradient(circle at 30% 20%, #2b7a57, var(--felt) 60%); color: #fff; font: 16px/1.5 system-ui, "Segoe UI", sans-serif; min-height: 100vh; }
+  main { max-width: 860px; margin: 0 auto; padding: 26px 16px 56px; }
+  h1 { font: 900 38px/1.05 system-ui, sans-serif; margin: 0; } h1 span { color: var(--yellow); } .sub { color: #d3f9d8; margin: 6px 0 8px; }
+  #status { font-size: 13px; color: #d3f9d8; margin: 0 0 12px; } #status.ok { color: #b2f2bb; } #status.err { color: #ffc9c9; }
+  .panel { background: var(--card); color: var(--ink); border-radius: 18px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 10px 24px rgba(0,0,0,.25); } .panel h2 { font-size: 18px; margin: 0 0 8px; }
+  textarea, select, input { font: inherit; padding: 10px 12px; border: 2px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); } textarea { width: 100%; min-height: 80px; resize: vertical; font-size: 17px; } input[type=number] { width: 90px; }
+  textarea:focus-visible, select:focus-visible, input:focus-visible, button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 0; } .chips button { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; font-size: 14px; font-weight: 600; }
+  button { font: inherit; font-weight: 800; padding: 10px 18px; border: 0; border-radius: 12px; background: var(--red); color: #fff; cursor: pointer; }
+  button.ghost { background: #fff; color: var(--ink); border: 1px solid var(--line); padding: 6px 12px; font-size: 14px; } button.busy { opacity: .55; cursor: progress; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; } .note { color: var(--muted); font-size: 14px; min-height: 20px; margin: 8px 0 0; }
+  .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+  .game { background: var(--card); color: var(--ink); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 8px 18px rgba(0,0,0,.25); } .game.top { outline: 4px solid var(--yellow); }
+  .game .e { font-size: 38px; line-height: 1; } .game b { font-size: 19px; } .game .type { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--red); } .game p { margin: 0; color: var(--muted); flex: 1; }
+  .facts { display: flex; gap: 6px; flex-wrap: wrap; } .facts span { font-size: 12px; font-weight: 800; background: #f1f3f5; border-radius: 99px; padding: 2px 9px; }
+  #src { color: #d3f9d8; font-size: 14px; } .fine { color: #d3f9d8; font-size: 13px; } .night { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); } .night span { flex: 1; } .empty { color: var(--muted); } .hidden { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Board Game <span>Matcher</span> &#127922;</h1>
+  <p class="sub">Describe your game night. Find board and card games that fit who's playing and how long you have.</p>
+  <p id="status">Checking game matching...</p>
+  <section class="panel">
+    <h2>What kind of game night?</h2>
+    <textarea id="about" maxlength="400" placeholder="For example: relaxed co-op game for me and my partner, nothing too long." aria-label="Describe your game night"></textarea>
+    <div class="chips" id="chips"></div>
+    <div class="row"><label for="players">Players</label><input id="players" type="number" min="1" max="20" value="4"><label for="time">Time</label><select id="time"><option value="0">Any length</option><option value="20">20 min or less</option><option value="45">45 min or less</option><option value="90">90 min or less</option></select><button id="go">Find games</button></div>
+    <p class="note" id="note"></p>
+  </section>
+  <section id="results" class="hidden"><p id="src" aria-live="polite"></p><div class="games" id="list"></div>
+    <p class="fine">Player counts, times and ages are approximate. Check the box for your edition.</p></section>
+  <section class="panel" style="margin-top:16px"><h2>🎲 Game night list</h2><div id="night"></div><div class="row"><button class="ghost" id="copy">Copy list</button></div></section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const PICKS = ["cooperative, we win together", "silly party game", "quick and easy to learn", "deep strategy", "for kids and adults", "word game", "bluffing and tricking friends", "relaxing and pretty", "just the two of us"];
+let games = [], busy = false, ai = { ready: false, message: "Loading...", percent: null, error: null };
+let night = []; try { night = JSON.parse(localStorage.getItem("gameNight") || "[]"); } catch {}
+const persist = () => { try { localStorage.setItem("gameNight", JSON.stringify(night)); } catch {} };
+PICKS.forEach((p) => { const b = document.createElement("button"); b.textContent = "+ " + p; b.addEventListener("click", () => { const t = $("about").value.trim(); if (!t.includes(p)) $("about").value = (t ? t.replace(/[.!]?$/, ", ") : "") + p; if (/two of us/.test(p)) $("players").value = 2; $("about").focus(); }); $("chips").append(b); });
+
+function show(idx, label) {
+  $("results").classList.remove("hidden"); $("src").textContent = label; const box = $("list"); box.innerHTML = "";
+  if (!idx.length) { box.innerHTML = '<p style="color:#d3f9d8">No games fit that many players and that time. Try more time or a different player count.</p>'; return; }
+  idx.forEach((i, k) => { const g = games[i], d = document.createElement("div"); d.className = "game" + (k === 0 ? " top" : ""); const e = document.createElement("span"); e.className = "e"; e.textContent = g.emoji; const b = document.createElement("b"); b.textContent = g.name;
+    const t = document.createElement("span"); t.className = "type"; t.textContent = g.type; const p = document.createElement("p"); p.textContent = g.about; const f = document.createElement("div"); f.className = "facts";
+    ["\ud83d\udc65 " + (g.min === g.max ? g.min : g.min + "\u2013" + g.max), "\u23f1 ~" + g.minutes + " min", "\ud83c\udf82 " + g.age].forEach((x) => { const s = document.createElement("span"); s.textContent = x; f.append(s); });
+    const on = night.includes(g.name), nb = document.createElement("button"); nb.className = "ghost"; nb.textContent = on ? "\u2713 On game night" : "+ Game night";
+    nb.addEventListener("click", () => { night = night.includes(g.name) ? night.filter((x) => x !== g.name) : [...night, g.name]; persist(); drawNight(); nb.textContent = night.includes(g.name) ? "\u2713 On game night" : "+ Game night"; });
+    d.append(e, b, t, p, f, nb); box.append(d); });
+}
+function filters() { return { players: parseInt($("players").value, 10) || 0, maxMinutes: +$("time").value }; }
+function keywordMatch(t) {
+  const ws = t.toLowerCase().split(/[^a-z]+/).filter((w) => w.length > 3 && !["game", "games", "want", "like", "with", "night", "just", "nothing"].includes(w)), { players, maxMinutes } = filters();
+  return games.map((g, i) => ({ i, g, s: ws.filter((w) => (g.name + " " + g.type + " " + g.about).toLowerCase().split(/[^a-z]+/).some((x) => x === w || (w.length > 4 && x.startsWith(w.slice(0, 5))))).length }))
+    .filter((x) => x.s > 0 && (!players || (players >= x.g.min && players <= x.g.max)) && (!maxMinutes || x.g.minutes <= maxMinutes)).sort((a, b) => b.s - a.s).slice(0, 6).map((x) => x.i);
+}
+async function find() {
+  if (busy) return; const about = $("about").value.trim(); if (!about) { $("note").textContent = "Describe your game night first, or tap some quick picks."; return $("about").focus(); }
+  if (!games.length) { $("note").textContent = "The game list hasn't loaded. Is the server running?"; return; }
+  busy = true; $("go").classList.add("busy"); $("note").textContent = ai.ready ? "Shuffling the game shelf..." : "";
+  try { if (!ai.ready) throw new Error("not ready");
+    const res = await fetch("/api/match", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ about, ...filters() }) }); const r = await res.json(); if (!res.ok) throw new Error(r.error);
+    const f = filters(); show(r, "Best matches by meaning for " + (f.players ? f.players + " player" + (f.players > 1 ? "s" : "") : "any group") + (f.maxMinutes ? ", " + f.maxMinutes + " min or less" : "")); $("note").textContent = "";
+  } catch { show(keywordMatch(about), "Matches by keywords"); $("note").textContent = ai.ready ? "" : "The AI is still loading, so this matched keywords. Try again soon for smarter matches."; }
+  busy = false; $("go").classList.remove("busy");
+}
+$("go").addEventListener("click", find); $("about").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); find(); } });
+function drawNight() { const box = $("night"); box.innerHTML = night.length ? "" : '<p class="empty">Add games for your next game night.</p>';
+  night.forEach((n) => { const g = games.find((x) => x.name === n); const r = document.createElement("div"); r.className = "night"; const s = document.createElement("span"); s.textContent = (g ? g.emoji + " " : "") + n + (g ? " \u00b7 " + g.min + "\u2013" + g.max + " players, ~" + g.minutes + " min" : "");
+    const x = document.createElement("button"); x.className = "ghost"; x.textContent = "Remove"; x.addEventListener("click", () => { night = night.filter((k) => k !== n); persist(); drawNight(); }); r.append(s, x); box.append(r); }); }
+$("copy").addEventListener("click", async () => { if (!night.length) return; try { await navigator.clipboard.writeText("Game night: " + night.join(", ")); $("copy").textContent = "Copied!"; } catch { $("copy").textContent = "Press Ctrl+C"; } setTimeout(() => ($("copy").textContent = "Copy list"), 1200); });
+
+async function checkStatus() {
+  try { ai = await (await fetch("/api/status")).json();
+    if (ai.error) return setStatus("Matching error: " + ai.error + ". Keyword matching still works.", "err");
+    if (ai.ready) return setStatus("Game matching ready. It runs on your device.", "ok");
+    setStatus(ai.message + (ai.percent != null ? " " + ai.percent + "%" : "") + " Keyword matching works meanwhile.");
+  } catch { ai = { ready: false, error: "the server can't be reached" }; setStatus("Can't reach the server. Open http://localhost:3071 and make sure npm start is running.", "err"); return; }
+  setTimeout(checkStatus, 1500);
+}
+function setStatus(t, c = "") { $("status").textContent = t; $("status").className = c; }
+fetch("/api/games").then((r) => r.json()).then((g) => { games = g; drawNight(); }).catch(() => ($("note").textContent = "Couldn't load the game list. Is the server running?"));
+checkStatus();
+</script>
+</body>
+</html>
