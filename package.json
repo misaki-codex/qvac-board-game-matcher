@@ -1,0 +1,10 @@
+{
+  "name": "qvac-board-game-matcher",
+  "version": "1.0.0",
+  "description": "Board Game Matcher: describe your game night (who's playing, the mood, how long) and find board and card games that fit by meaning, filtered by player count and time. Uses on-device QVAC embeddings.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "@qvac/sdk": "^0.19.0" },
+  "license": "MIT"
+}
