@@ -1,0 +1,37 @@
+HOW TO PUT qvac-board-game-matcher ON GITHUB (account: misaki-codex)
+========================================
+
+1) On github.com (signed in as misaki-codex), click New repository.
+   Name: qvac-board-game-matcher
+   Set it to Public.
+   Do NOT tick "Add a README" or "Add a license".
+
+2) Open LICENSE and replace YOUR NAME with your name.
+   (The README already uses misaki-codex.)
+
+3) Open Command Prompt in this folder and run these one at a time:
+
+git init
+git config user.email "YOUR-MISAKI-CODEX-EMAIL"
+git add package.json server.js games.js .gitignore
+git commit -m "Add QVAC server"
+
+git add public
+git commit -m "Add web page"
+
+git add README.md LICENSE
+git commit -m "Add README and license"
+
+git branch -M main
+git remote add origin https://misaki-codex@github.com/misaki-codex/qvac-board-game-matcher.git
+git push -u origin main
+
+   If a browser window opens, sign in as misaki-codex (not sterlingccode).
+
+4) Take a screenshot of the app working, save it in this folder as screenshot.png, then run:
+
+git add screenshot.png
+git commit -m "Add screenshot"
+git push
+
+(This file itself is not uploaded, because you only add files by name.)
